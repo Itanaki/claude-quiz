@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DOMAIN_NAMES, LETTERS, PASS_MARK, formatTime, getQuestion, scoreSession } from '../quiz.js';
 
-export default function Results({ session, onRestart, onHome }) {
+export default function Results({ session, onRestart, onHome, onOpenStudy, starred = [], onToggleStar, onStarBatch }) {
   const score = useMemo(() => scoreSession(session), [session]);
   const [filter, setFilter] = useState('incorrect'); // all | incorrect | flagged | unanswered
   const passed = score.pct >= PASS_MARK;
@@ -29,6 +29,13 @@ export default function Results({ session, onRestart, onHome }) {
 
   const retry = (ids, label) => onRestart({ ...session.config, label }, ids);
 
+  const handleStarAllMissed = () => {
+    if (onStarBatch && missedIds.length) {
+      onStarBatch(missedIds);
+      alert(`Added ${missedIds.length} missed question(s) to your Starred list!`);
+    }
+  };
+
   return (
     <div className="results">
       <section className={`card score-card ${passed ? 'pass' : 'fail'}`}>
@@ -36,7 +43,7 @@ export default function Results({ session, onRestart, onHome }) {
           <span>{score.pct}%</span>
         </div>
         <div className="score-info">
-          <h1>{passed ? 'Passed 🎉' : 'Keep practicing'}</h1>
+          <h1>{passed ? 'Exam Passed! 🎉' : 'Needs More Practice'}</h1>
           <p className="muted">
             {session.config.label} · {session.config.mode} mode · pass mark {PASS_MARK}%
           </p>
@@ -60,6 +67,11 @@ export default function Results({ session, onRestart, onHome }) {
             <button className="btn" onClick={() => retry(allIds, session.config.label)}>
               Restart same quiz
             </button>
+            {missedIds.length > 0 && onStarBatch && (
+              <button className="btn ghost" onClick={handleStarAllMissed} title="Save missed questions to study bank">
+                ★ Star all missed
+              </button>
+            )}
             <button className="btn ghost" onClick={onHome}>
               New quiz
             </button>
@@ -68,7 +80,7 @@ export default function Results({ session, onRestart, onHome }) {
       </section>
 
       <section className="card">
-        <h2>Score by domain</h2>
+        <h2>Score by domain ({score.byDomain.length} domains in this quiz)</h2>
         <div className="domain-bars">
           {score.byDomain.map((d) => {
             const pct = Math.round((d.correct / d.total) * 100);
@@ -107,38 +119,55 @@ export default function Results({ session, onRestart, onHome }) {
           </div>
         </div>
 
-        {visible.length === 0 && <p className="muted">Nothing to show here. Nice work!</p>}
+        {visible.length === 0 && (
+          <p className="muted" style={{ padding: '20px 0' }}>
+            No questions to show in this view. Excellent job!
+          </p>
+        )}
 
         <div className="review-list">
-          {visible.map(({ item, i, q, given, status, flagged }) => (
-            <article key={q.id} className={`review ${status}`}>
-              <div className="row between small muted">
-                <span>
-                  #{i + 1} · Q{q.id} · Domain {q.domain}: {DOMAIN_NAMES[q.domain]}
-                  {flagged && ' · ⚑ flagged'}
-                </span>
-                <span className={`badge ${status}`}>{status}</span>
-              </div>
-              <h3>{q.question}</h3>
-              <ul className="review-options">
-                {item.order.map((key, idx) => {
-                  const opt = q.options.find((o) => o.key === key);
-                  const cls = key === q.answer ? 'correct' : key === given ? 'wrong' : '';
-                  return (
-                    <li key={key} className={cls}>
-                      <span className="letter">{LETTERS[idx]}</span>
-                      <span>{opt.text}</span>
-                      {key === q.answer && <span className="mark">✔ correct</span>}
-                      {key === given && key !== q.answer && <span className="mark">✘ your answer</span>}
-                    </li>
-                  );
-                })}
-              </ul>
-              <p className="rationale">
-                <b>Rationale:</b> {q.rationale}
-              </p>
-            </article>
-          ))}
+          {visible.map(({ item, i, q, given, status, flagged }) => {
+            const isStarred = starred.includes(q.id);
+            return (
+              <article key={q.id} className={`review ${status}`}>
+                <div className="row between small muted">
+                  <span>
+                    #{i + 1} · Q{q.id} · Domain {q.domain}: {DOMAIN_NAMES[q.domain]}
+                    {flagged && ' · ⚑ flagged'}
+                  </span>
+                  <div className="row gap-sm">
+                    {onToggleStar && (
+                      <button
+                        className={`star-btn small ${isStarred ? 'starred' : ''}`}
+                        onClick={() => onToggleStar(q.id)}
+                      >
+                        {isStarred ? '★ Starred' : '☆ Star'}
+                      </button>
+                    )}
+                    <span className={`badge ${status}`}>{status}</span>
+                  </div>
+                </div>
+                <h3>{q.question}</h3>
+                <ul className="review-options">
+                  {item.order.map((key, idx) => {
+                    const opt = q.options.find((o) => o.key === key);
+                    const cls = key === q.answer ? 'correct' : key === given ? 'wrong' : '';
+                    return (
+                      <li key={key} className={cls}>
+                        <span className="letter">{LETTERS[idx]}</span>
+                        <span className="text">{opt.text}</span>
+                        {key === q.answer && <span className="mark">✔ correct</span>}
+                        {key === given && key !== q.answer && <span className="mark">✘ your answer</span>}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="rationale">
+                  <b>Rationale:</b> {q.rationale}
+                </p>
+              </article>
+            );
+          })}
         </div>
       </section>
     </div>

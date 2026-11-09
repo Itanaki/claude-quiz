@@ -36,7 +36,7 @@ export function buildSession(config, questionIds) {
       order: config.shuffleOptions ? shuffle(q.options.map((o) => o.key)) : q.options.map((o) => o.key),
     })),
     answers: {}, // question id -> original option key
-    flagged: [], // question ids
+    flagged: [], // session-specific flagged question ids
     current: 0,
     elapsed: 0, // seconds
     startedAt: Date.now(),
@@ -85,9 +85,12 @@ export function formatTime(totalSeconds) {
   return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 }
 
-/* ---------- localStorage helpers ---------- */
+/* ---------- localStorage keys & helpers ---------- */
 const SESSION_KEY = 'cca-quiz-session';
 const HISTORY_KEY = 'cca-quiz-history';
+const STARRED_KEY = 'cca-quiz-starred';
+const STATS_KEY = 'cca-quiz-stats';
+const THEME_KEY = 'cca-quiz-theme';
 
 function read(key, fallback) {
   try {
@@ -98,15 +101,73 @@ function read(key, fallback) {
   }
 }
 
+function write(key, val) {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    // quota exceeded or private mode
+  }
+}
+
 export const storage = {
   loadSession: () => read(SESSION_KEY, null),
-  saveSession: (s) => localStorage.setItem(SESSION_KEY, JSON.stringify(s)),
+  saveSession: (s) => write(SESSION_KEY, s),
   clearSession: () => localStorage.removeItem(SESSION_KEY),
+
   loadHistory: () => read(HISTORY_KEY, []),
   addHistory: (entry) => {
     const h = [entry, ...read(HISTORY_KEY, [])].slice(0, 20);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+    write(HISTORY_KEY, h);
     return h;
   },
   clearHistory: () => localStorage.removeItem(HISTORY_KEY),
+
+  loadStarred: () => read(STARRED_KEY, []),
+  saveStarred: (ids) => write(STARRED_KEY, ids),
+  toggleStarred: (id) => {
+    const list = read(STARRED_KEY, []);
+    const updated = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+    write(STARRED_KEY, updated);
+    return updated;
+  },
+  addStarredBatch: (ids) => {
+    const set = new Set([...read(STARRED_KEY, []), ...ids]);
+    const updated = [...set];
+    write(STARRED_KEY, updated);
+    return updated;
+  },
+
+  loadStats: () => read(STATS_KEY, {}),
+  recordSessionAttempts: (session) => {
+    const stats = read(STATS_KEY, {});
+    for (const item of session.items) {
+      const q = getQuestion(item.id);
+      const given = session.answers[q.id];
+      if (!given) continue;
+      const isCorrect = given === q.answer;
+      const cur = stats[q.id] || { attempts: 0, correct: 0, wrong: 0, last: 0 };
+      stats[q.id] = {
+        attempts: cur.attempts + 1,
+        correct: cur.correct + (isCorrect ? 1 : 0),
+        wrong: cur.wrong + (isCorrect ? 0 : 1),
+        last: Date.now(),
+        lastCorrect: isCorrect,
+      };
+    }
+    write(STATS_KEY, stats);
+    return stats;
+  },
+
+  loadTheme: () => {
+    try {
+      return localStorage.getItem(THEME_KEY) || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch {
+      return 'light';
+    }
+  },
+  saveTheme: (theme) => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {}
+  },
 };

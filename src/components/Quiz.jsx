@@ -1,7 +1,7 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { DOMAIN_NAMES, LETTERS, formatTime, getQuestion, scoreSession } from '../quiz.js';
 
-export default function Quiz({ session, onChange, onFinish, onExit }) {
+export default function Quiz({ session, onChange, onFinish, onExit, starred = [], onToggleStar }) {
   const { items, answers, flagged, current, config, elapsed } = session;
   const item = items[current];
   const q = getQuestion(item.id);
@@ -9,8 +9,10 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
   const isPractice = config.mode === 'practice';
   const revealed = isPractice && !!chosen; // practice mode locks & reveals after answering
   const isFlagged = flagged.includes(q.id);
+  const isStarred = starred.includes(q.id);
   const answeredCount = Object.keys(answers).length;
   const remaining = config.timeLimit ? config.timeLimit - elapsed : null;
+  const [filterNav, setFilterNav] = useState('all'); // all | unanswered | flagged
 
   /* ---------- timer ---------- */
   useEffect(() => {
@@ -67,13 +69,23 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
       else if (k === 'arrowright') goTo(current + 1);
       else if (k === 'arrowleft') goTo(current - 1);
       else if (k === 'f') toggleFlag();
+      else if (k === 's' && onToggleStar) onToggleStar(q.id);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [item, choose, goTo, current, toggleFlag]);
+  }, [item, choose, goTo, current, toggleFlag, onToggleStar, q.id]);
 
   const liveScore = isPractice ? scoreSession(session) : null;
   const isLast = current === items.length - 1;
+
+  // Question palette filtering
+  const visibleIndices = items
+    .map((it, i) => ({ it, i }))
+    .filter(({ it }) => {
+      if (filterNav === 'flagged') return flagged.includes(it.id);
+      if (filterNav === 'unanswered') return !answers[it.id];
+      return true;
+    });
 
   return (
     <div className="quiz">
@@ -102,8 +114,9 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
         <div className="progress" title={`${answeredCount} of ${items.length} answered`}>
           <div style={{ width: `${(answeredCount / items.length) * 100}%` }} />
         </div>
-        <div className="muted small">
-          {answeredCount}/{items.length} answered
+        <div className="row between tiny muted">
+          <span>{answeredCount} of {items.length} answered</span>
+          <span>{items.length - answeredCount} remaining</span>
         </div>
       </div>
 
@@ -112,9 +125,22 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
         <div className="card question-card">
           <div className="row between">
             <span className="qnum">Q{q.id}</span>
-            <button className={`btn ghost small ${isFlagged ? 'flag-on' : ''}`} onClick={toggleFlag}>
-              {isFlagged ? '⚑ Flagged' : '⚐ Flag for review'}
-            </button>
+            <div className="row gap-sm">
+              <button
+                className={`btn ghost small ${isStarred ? 'starred-on' : ''}`}
+                onClick={() => onToggleStar && onToggleStar(q.id)}
+                title="Star question for permanent study list"
+              >
+                {isStarred ? '★ Starred' : '☆ Star'}
+              </button>
+              <button
+                className={`btn ghost small ${isFlagged ? 'flag-on' : ''}`}
+                onClick={toggleFlag}
+                title="Flag for review in this quiz attempt"
+              >
+                {isFlagged ? '⚑ Flagged' : '⚐ Flag'}
+              </button>
+            </div>
           </div>
           <h2 className="question">{q.question}</h2>
 
@@ -128,7 +154,7 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
               return (
                 <button key={key} className={cls} onClick={() => choose(key)} disabled={revealed}>
                   <span className="letter">{LETTERS[i]}</span>
-                  <span>{opt.text}</span>
+                  <span className="text">{opt.text}</span>
                   {revealed && key === q.answer && <span className="mark">✔</span>}
                   {revealed && chosen === key && key !== q.answer && <span className="mark">✘</span>}
                 </button>
@@ -161,18 +187,37 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
               </button>
             )}
           </div>
-          <div className="muted tiny hint">Shortcuts: 1–4 or A–D to answer · ← → to navigate · F to flag</div>
+          <div className="muted tiny hint">
+            Shortcuts: <b>1–4</b> / <b>A–D</b> to answer · <b>← →</b> to navigate · <b>F</b> to flag · <b>S</b> to star
+          </div>
         </div>
 
         {/* ---------- question navigator ---------- */}
         <aside className="card navigator">
-          <h3>Questions</h3>
+          <div className="row between">
+            <h3>Questions</h3>
+            <span className="tiny muted">{answeredCount}/{items.length}</span>
+          </div>
+
+          <div className="seg tiny" style={{ margin: '8px 0' }}>
+            <button className={filterNav === 'all' ? 'active' : ''} onClick={() => setFilterNav('all')}>
+              All
+            </button>
+            <button className={filterNav === 'unanswered' ? 'active' : ''} onClick={() => setFilterNav('unanswered')}>
+              Unanswered
+            </button>
+            <button className={filterNav === 'flagged' ? 'active' : ''} onClick={() => setFilterNav('flagged')}>
+              Flagged ({flagged.length})
+            </button>
+          </div>
+
           <div className="palette">
-            {items.map((it, i) => {
+            {visibleIndices.map(({ it, i }) => {
               const a = answers[it.id];
               let cls = 'cell';
               if (a) cls += isPractice ? (a === getQuestion(it.id).answer ? ' c-ok' : ' c-no') : ' c-ans';
               if (flagged.includes(it.id)) cls += ' c-flag';
+              if (starred.includes(it.id)) cls += ' c-star';
               if (i === current) cls += ' c-cur';
               return (
                 <button key={it.id} className={cls} onClick={() => goTo(i)} title={`Question ${i + 1}`}>
@@ -181,6 +226,7 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
               );
             })}
           </div>
+
           <div className="legend tiny muted">
             {isPractice ? (
               <>
@@ -190,8 +236,10 @@ export default function Quiz({ session, onChange, onFinish, onExit }) {
             ) : (
               <span><i className="cell c-ans" /> answered</span>
             )}
-            <span><i className="cell c-flag" /> flagged</span>
+            <span><i className="cell c-flag" /> flag</span>
+            <span><i className="cell c-star" /> star</span>
           </div>
+
           <div className="stack">
             <button className="btn primary block" onClick={submit}>
               Submit quiz
