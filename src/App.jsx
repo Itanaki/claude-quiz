@@ -3,6 +3,8 @@ import StartScreen from './components/StartScreen.jsx';
 import Quiz from './components/Quiz.jsx';
 import Results from './components/Results.jsx';
 import StudyMode from './components/StudyMode.jsx';
+import FlashcardMode from './components/FlashcardMode.jsx';
+import ReadinessDashboard from './components/ReadinessDashboard.jsx';
 import { TITLE, buildSession, scoreSession, storage } from './quiz.js';
 
 export default function App() {
@@ -15,12 +17,26 @@ export default function App() {
   const [starred, setStarred] = useState(() => storage.loadStarred());
   const [stats, setStats] = useState(() => storage.loadStats());
   const [theme, setTheme] = useState(() => storage.loadTheme());
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try {
+      return localStorage.getItem('cca-quiz-sound') !== 'false';
+    } catch {
+      return true;
+    }
+  });
 
   // Apply theme to <html>
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     storage.saveTheme(theme);
   }, [theme]);
+
+  // Persist sound preference
+  useEffect(() => {
+    try {
+      localStorage.setItem('cca-quiz-sound', soundEnabled);
+    } catch {}
+  }, [soundEnabled]);
 
   // Persist every change to active session
   useEffect(() => {
@@ -32,6 +48,10 @@ export default function App() {
     setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
   };
 
+  const toggleSound = () => {
+    setSoundEnabled((s) => !s);
+  };
+
   const toggleStar = (id) => {
     const updated = storage.toggleStarred(id);
     setStarred(updated);
@@ -40,6 +60,23 @@ export default function App() {
   const addStarredBatch = (ids) => {
     const updated = storage.addStarredBatch(ids);
     setStarred(updated);
+  };
+
+  const handleImportData = (data) => {
+    if (data.stats) {
+      storage.recordSessionAttempts = () => data.stats;
+      localStorage.setItem('cca-quiz-stats', JSON.stringify(data.stats));
+      setStats(data.stats);
+    }
+    if (data.starred) {
+      storage.saveStarred(data.starred);
+      setStarred(data.starred);
+    }
+    if (data.history) {
+      localStorage.setItem('cca-quiz-history', JSON.stringify(data.history));
+      setHistory(data.history);
+    }
+    alert('Progress successfully imported!');
   };
 
   const start = (config, questionIds) => {
@@ -92,10 +129,22 @@ export default function App() {
               Quiz Home
             </button>
             <button
+              className={`nav-btn ${screen === 'flashcards' ? 'active' : ''}`}
+              onClick={() => setScreen('flashcards')}
+            >
+              Flashcards
+            </button>
+            <button
               className={`nav-btn ${screen === 'study' ? 'active' : ''}`}
               onClick={() => setScreen('study')}
             >
-              Study Bank
+              Question Bank
+            </button>
+            <button
+              className={`nav-btn ${screen === 'readiness' ? 'active' : ''}`}
+              onClick={() => setScreen('readiness')}
+            >
+              Mastery
             </button>
             {starred.length > 0 && (
               <button
@@ -106,6 +155,14 @@ export default function App() {
                 ★ {starred.length}
               </button>
             )}
+            <button
+              className="theme-btn sound-btn"
+              onClick={toggleSound}
+              title={`Turn sound ${soundEnabled ? 'off' : 'on'}`}
+              aria-label="Toggle sound"
+            >
+              {soundEnabled ? '🔔' : '🔕'}
+            </button>
             <button
               className="theme-btn"
               onClick={toggleTheme}
@@ -133,6 +190,8 @@ export default function App() {
             starred={starred}
             stats={stats}
             onOpenStudy={() => setScreen('study')}
+            onOpenFlashcards={() => setScreen('flashcards')}
+            onOpenReadiness={() => setScreen('readiness')}
           />
         )}
 
@@ -144,6 +203,7 @@ export default function App() {
             onExit={() => setScreen('start')}
             starred={starred}
             onToggleStar={toggleStar}
+            soundEnabled={soundEnabled}
           />
         )}
 
@@ -166,6 +226,26 @@ export default function App() {
             stats={stats}
             onStartQuiz={start}
             onBack={goHome}
+          />
+        )}
+
+        {screen === 'flashcards' && (
+          <FlashcardMode
+            starred={starred}
+            onToggleStar={toggleStar}
+            onBack={goHome}
+            soundEnabled={soundEnabled}
+          />
+        )}
+
+        {screen === 'readiness' && (
+          <ReadinessDashboard
+            stats={stats}
+            history={history}
+            starred={starred}
+            onStartQuiz={start}
+            onBack={goHome}
+            onImportData={handleImportData}
           />
         )}
       </main>

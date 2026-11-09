@@ -16,6 +16,8 @@ export default function StartScreen({
   starred = [],
   stats = {},
   onOpenStudy,
+  onOpenFlashcards,
+  onOpenReadiness,
 }) {
   const [scope, setScope] = useState('all'); // all | domains | random | starred | weak
   const [selected, setSelected] = useState(() => DOMAINS.map((d) => d.id));
@@ -97,6 +99,41 @@ export default function StartScreen({
     });
   };
 
+  // Quick preset starters
+  const startPreset = (presetType) => {
+    if (presetType === 'simulation') {
+      onStart({
+        label: 'Exam Simulation (60 Questions, 75 mins)',
+        mode: 'exam',
+        domains: DOMAINS.map((d) => d.id),
+        count: 60,
+        shuffleQuestions: true,
+        shuffleOptions: true,
+        timeLimit: 75 * 60,
+      });
+    } else if (presetType === 'quick15') {
+      onStart({
+        label: 'Quick Practice (15 Questions)',
+        mode: 'practice',
+        domains: DOMAINS.map((d) => d.id),
+        count: 15,
+        shuffleQuestions: true,
+        shuffleOptions: true,
+        timeLimit: null,
+      });
+    } else if (presetType === 'practice30') {
+      onStart({
+        label: 'Standard Practice (30 Questions)',
+        mode: 'practice',
+        domains: DOMAINS.map((d) => d.id),
+        count: 30,
+        shuffleQuestions: true,
+        shuffleOptions: true,
+        timeLimit: null,
+      });
+    }
+  };
+
   const resumeScore = resumable ? scoreSession(resumable) : null;
 
   return (
@@ -106,12 +143,41 @@ export default function StartScreen({
           <div>
             <h1>Claude Certified Associate – Foundations</h1>
             <p className="muted">
-              Complete interactive mock exam featuring all <b>300 questions</b> and <b>26 domains</b>.
+              Interactive preparation app featuring all <b>300 questions</b> and <b>26 domains</b> from the mock exam.
             </p>
           </div>
-          <button className="btn outline" onClick={onOpenStudy} title="Search questions and study rationales">
-            📖 Question Bank &amp; Study Guide
-          </button>
+          <div className="row wrap gap-sm">
+            <button className="btn outline small" onClick={onOpenFlashcards} title="Interactive card flip study mode">
+              🃏 Flashcards
+            </button>
+            <button className="btn outline small" onClick={onOpenStudy} title="Search questions and study rationales">
+              📖 Question Bank
+            </button>
+            <button className="btn outline small" onClick={onOpenReadiness} title="View mastery progress by domain">
+              📊 Mastery &amp; Readiness
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Launch Presets */}
+      <section className="card presets-card">
+        <div className="row between wrap gap-sm">
+          <div>
+            <h3>Quick Launch Presets</h3>
+            <span className="muted tiny">Jump straight into a tailored session</span>
+          </div>
+          <div className="row wrap gap-sm">
+            <button className="btn small" onClick={() => startPreset('quick15')}>
+              ⚡ 15 Qs Practice
+            </button>
+            <button className="btn small" onClick={() => startPreset('practice30')}>
+              🎯 30 Qs Practice
+            </button>
+            <button className="btn primary small" onClick={() => startPreset('simulation')}>
+              🏆 Official Simulation (60 Qs · 75 min)
+            </button>
+          </div>
         </div>
       </section>
 
@@ -136,7 +202,7 @@ export default function StartScreen({
       )}
 
       <section className="card">
-        <h2>1. Choose questions</h2>
+        <h2>1. Custom Question Selection</h2>
         <div className="seg">
           {[
             ['all', `All (${ALL_QUESTIONS.length})`],
@@ -217,7 +283,7 @@ export default function StartScreen({
       </section>
 
       <section className="card">
-        <h2>2. Quiz mode &amp; options</h2>
+        <h2>2. Quiz Mode &amp; Options</h2>
         <div className="seg">
           <button className={mode === 'practice' ? 'active' : ''} onClick={() => setMode('practice')}>
             Practice Mode
@@ -274,7 +340,7 @@ export default function StartScreen({
       {history.length > 0 && (
         <section className="card">
           <div className="row between">
-            <h2>Recent quiz attempts</h2>
+            <h2>Recent Quiz Attempts</h2>
             <button className="btn ghost small" onClick={onClearHistory}>
               Clear history
             </button>
@@ -292,7 +358,10 @@ export default function StartScreen({
             <tbody>
               {history.map((h, i) => (
                 <tr key={i}>
-                  <td>{new Date(h.date).toLocaleDateString()} {new Date(h.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                  <td>
+                    {new Date(h.date).toLocaleDateString()}{' '}
+                    {new Date(h.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </td>
                   <td>{h.label}</td>
                   <td className="cap">{h.mode}</td>
                   <td className={h.pct >= PASS_MARK ? 'good' : 'bad'}>

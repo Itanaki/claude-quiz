@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { DOMAIN_NAMES, LETTERS, PASS_MARK, formatTime, getQuestion, scoreSession } from '../quiz.js';
 
-export default function Results({ session, onRestart, onHome, onOpenStudy, starred = [], onToggleStar, onStarBatch }) {
+export default function Results({ session, onRestart, onHome, onOpenStudy, starred = [], onToggleStar, onStarBatch, onOpenFlashcards }) {
   const score = useMemo(() => scoreSession(session), [session]);
   const [filter, setFilter] = useState('incorrect'); // all | incorrect | flagged | unanswered
+  const [copied, setCopied] = useState(false);
   const passed = score.pct >= PASS_MARK;
 
   const rows = session.items.map((item, i) => {
@@ -34,6 +35,25 @@ export default function Results({ session, onRestart, onHome, onOpenStudy, starr
       onStarBatch(missedIds);
       alert(`Added ${missedIds.length} missed question(s) to your Starred list!`);
     }
+  };
+
+  const handleCopySummary = () => {
+    const text = [
+      `Claude Certified Associate – Mock Exam Result`,
+      `Score: ${score.correct}/${score.total} (${score.pct}%) - ${passed ? 'PASSED' : 'NEEDS PRACTICE'}`,
+      `Time: ${formatTime(session.elapsed)}`,
+      `Quiz: ${session.config.label}`,
+      `Date: ${new Date().toLocaleDateString()}`,
+      `Breakdown:`,
+      ...score.byDomain.map(
+        (d) => `  - D${d.id} (${d.name}): ${d.correct}/${d.total} (${Math.round((d.correct / d.total) * 100)}%)`
+      ),
+    ].join('\n');
+
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   return (
@@ -67,11 +87,19 @@ export default function Results({ session, onRestart, onHome, onOpenStudy, starr
             <button className="btn" onClick={() => retry(allIds, session.config.label)}>
               Restart same quiz
             </button>
+            {missedIds.length > 0 && onOpenFlashcards && (
+              <button className="btn" onClick={() => onOpenFlashcards(missedIds)} title="Practice missed questions on flashcards">
+                🃏 Flashcards on missed ({missedIds.length})
+              </button>
+            )}
             {missedIds.length > 0 && onStarBatch && (
               <button className="btn ghost" onClick={handleStarAllMissed} title="Save missed questions to study bank">
                 ★ Star all missed
               </button>
             )}
+            <button className="btn ghost" onClick={handleCopySummary}>
+              {copied ? '✔ Copied!' : '📋 Copy summary'}
+            </button>
             <button className="btn ghost" onClick={onHome}>
               New quiz
             </button>

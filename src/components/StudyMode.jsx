@@ -41,11 +41,28 @@ export default function StudyMode({ starred, onToggleStar, stats, onStartQuiz, o
     e.preventDefault();
     const id = Number(jumpId);
     if (!id || id < 1 || id > 300) return;
-    const el = document.getElementById(`study-q-${id}`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setRevealedIds((s) => new Set([...s, id]));
+
+    // Reset filters if question is filtered out
+    const targetQ = ALL_QUESTIONS.find((q) => q.id === id);
+    if (targetQ) {
+      if (selectedDomain !== 'all' && selectedDomain !== targetQ.domain) {
+        setSelectedDomain('all');
+      }
+      if (filterType !== 'all') {
+        setFilterType('all');
+      }
+      if (search) {
+        setSearch('');
+      }
     }
+
+    setTimeout(() => {
+      const el = document.getElementById(`study-q-${id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setRevealedIds((s) => new Set([...s, id]));
+      }
+    }, 50);
   };
 
   const startQuizFromHere = () => {

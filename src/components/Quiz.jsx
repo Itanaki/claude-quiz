@@ -1,7 +1,8 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { DOMAIN_NAMES, LETTERS, formatTime, getQuestion, scoreSession } from '../quiz.js';
+import { playSound } from '../utils/audio.js';
 
-export default function Quiz({ session, onChange, onFinish, onExit, starred = [], onToggleStar }) {
+export default function Quiz({ session, onChange, onFinish, onExit, starred = [], onToggleStar, soundEnabled = true }) {
   const { items, answers, flagged, current, config, elapsed } = session;
   const item = items[current];
   const q = getQuestion(item.id);
@@ -24,6 +25,7 @@ export default function Quiz({ session, onChange, onFinish, onExit, starred = []
   useEffect(() => {
     if (remaining !== null && remaining <= 0 && !timedOut.current) {
       timedOut.current = true;
+      playSound('complete', soundEnabled);
       onFinish(session); // time is up: auto-submit
     }
   }, [remaining]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -37,9 +39,18 @@ export default function Quiz({ session, onChange, onFinish, onExit, starred = []
   const choose = useCallback(
     (key) => {
       if (revealed) return;
+      if (isPractice) {
+        if (key === q.answer) {
+          playSound('correct', soundEnabled);
+        } else {
+          playSound('wrong', soundEnabled);
+        }
+      } else {
+        playSound('click', soundEnabled);
+      }
       onChange((s) => ({ ...s, answers: { ...s.answers, [q.id]: key } }));
     },
-    [revealed, q.id, onChange]
+    [revealed, isPractice, q.answer, q.id, soundEnabled, onChange]
   );
 
   const toggleFlag = useCallback(
@@ -56,8 +67,11 @@ export default function Quiz({ session, onChange, onFinish, onExit, starred = []
     const msg = unanswered
       ? `You have ${unanswered} unanswered question${unanswered === 1 ? '' : 's'}. Submit anyway?`
       : 'Submit your answers and see your results?';
-    if (window.confirm(msg)) onFinish(session);
-  }, [items.length, answeredCount, onFinish, session]);
+    if (window.confirm(msg)) {
+      playSound('complete', soundEnabled);
+      onFinish(session);
+    }
+  }, [items.length, answeredCount, onFinish, session, soundEnabled]);
 
   /* ---------- keyboard shortcuts ---------- */
   useEffect(() => {
@@ -129,14 +143,14 @@ export default function Quiz({ session, onChange, onFinish, onExit, starred = []
               <button
                 className={`btn ghost small ${isStarred ? 'starred-on' : ''}`}
                 onClick={() => onToggleStar && onToggleStar(q.id)}
-                title="Star question for permanent study list"
+                title="Star question for permanent study list (Shortcut: S)"
               >
                 {isStarred ? '★ Starred' : '☆ Star'}
               </button>
               <button
                 className={`btn ghost small ${isFlagged ? 'flag-on' : ''}`}
                 onClick={toggleFlag}
-                title="Flag for review in this quiz attempt"
+                title="Flag for review in this quiz attempt (Shortcut: F)"
               >
                 {isFlagged ? '⚑ Flagged' : '⚐ Flag'}
               </button>
